@@ -4,6 +4,7 @@ import axios from "axios";
 import querystring from "querystring";
 import path from "path";
 import dotenv from "dotenv";
+import os from "os";
 
 dotenv.config();
 
@@ -51,42 +52,69 @@ async function getSpotifyToken(): Promise<string> {
 }
 
 async function getNowPlaying(): Promise<NowPlayingData> {
+  const platform = os.platform();
+  let command: string;
+
+  switch (platform) {
+    case "darwin": // macOS
+      command = `osascript -e 'tell application "Google Chrome" to return title of active tab of front window'`;
+      break;
+    case "win32": // Windows (à implémenter plus tard)
+      throw new Error("Windows support not yet implemented");
+    default: // Linux
+      command = `playerctl -p ${PLAYERCTL_INSTANCE} metadata --format "{{ artist }} - {{ title }}"`;
+  }
+
   return new Promise((resolve, reject) => {
-    exec(
-      `playerctl -p ${PLAYERCTL_INSTANCE} metadata --format "{{ artist }} - {{ title }}"`,
-      async (error, stdout, stderr) => {
-        if (error) {
-          console.error(`exec error: ${error}`);
-          reject("An error occurred");
+    exec(command, async (error, stdout, stderr) => {
+      if (error) {
+        console.error(`exec error: ${error}`);
+        reject("An error occurred");
+        return;
+      }
+
+      let artist: string, title: string;
+
+      if (platform === "darwin") {
+        const parts = stdout.trim().split(" - ");
+        if (parts.length >= 2) {
+          title = parts[0].trim();
+          artist = parts[1].trim();
+        } else {
+          reject("Unable to parse song information");
           return;
         }
-        let [artist, title] = stdout.trim().split(" - ");
-        artist = artist.split(",")[0].trim();
-        title = title.replace(/-$/, "").trim();
-        console.log(`Cleaned metadata: Artist: ${artist}, Title: ${title}`);
-        try {
-          const token = await getSpotifyToken();
-          const searchUrl = `https://api.spotify.com/v1/search?q=${encodeURIComponent(
-            artist + " " + title,
-          )}&type=track&limit=1`;
-          const searchResponse = await axios.get<{
-            tracks: {
-              items: Array<{ album: { images: Array<{ url: string }> } }>;
-            };
-          }>(searchUrl, {
-            headers: { Authorization: "Bearer " + token },
-          });
-          let coverUrl = "";
-          if (searchResponse.data.tracks.items.length > 0) {
-            coverUrl = searchResponse.data.tracks.items[0].album.images[0].url;
-          }
-          resolve({ artist, title, coverUrl });
-        } catch (searchError) {
-          console.error("Error fetching album cover:", searchError);
-          reject("Error fetching data");
+      } else {
+        [artist, title] = stdout.trim().split(" - ");
+      }
+
+      artist = artist.split(",")[0].trim();
+      title = title.replace(/-$/, "").trim();
+
+      console.log(`Cleaned metadata: Artist: ${artist}, Title: ${title}`);
+
+      try {
+        const token = await getSpotifyToken();
+        const searchUrl = `https://api.spotify.com/v1/search?q=${encodeURIComponent(
+          artist + " " + title,
+        )}&type=track&limit=1`;
+        const searchResponse = await axios.get<{
+          tracks: {
+            items: Array<{ album: { images: Array<{ url: string }> } }>;
+          };
+        }>(searchUrl, {
+          headers: { Authorization: "Bearer " + token },
+        });
+        let coverUrl = "";
+        if (searchResponse.data.tracks.items.length > 0) {
+          coverUrl = searchResponse.data.tracks.items[0].album.images[0].url;
         }
-      },
-    );
+        resolve({ artist, title, coverUrl });
+      } catch (searchError) {
+        console.error("Error fetching album cover:", searchError);
+        reject("Error fetching data");
+      }
+    });
   });
 }
 

@@ -109,28 +109,33 @@ install_playerctl_arch() {
 }
 
 choose_player() {
-    players=($(playerctl -l))
-    if [ ${#players[@]} -eq 0 ]; then
-        error "No player detected. Make sure Deezer is running."
-        exit 1
-    fi
-
-    clear_and_show_logo
-    print_fancy_box "Available Players"
-    for i in "${!players[@]}"; do
-        echo -e " ${MAGENTA}${BOLD}$((i+1)).${RESET} ${CYAN}${players[$i]}${RESET}"
-    done
-    echo
-
-    while true; do
-        read -p "$(echo -e ${YELLOW}"Choose the Deezer player number (1-${#players[@]}) : "${RESET})" choice
-        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#players[@]}" ]; then
-            deezer_player=${players[$((choice-1))]}
-            break
-        else
-            warning "Invalid choice. Please enter a number between 1 and ${#players[@]}."
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        info "On macOS, we'll use Google Chrome for Deezer playback detection."
+        deezer_player="chrome"
+    else
+        players=($(playerctl -l))
+        if [ ${#players[@]} -eq 0 ]; then
+            error "No player detected. Make sure Deezer is running."
+            exit 1
         fi
-    done
+
+        clear_and_show_logo
+        print_fancy_box "Available Players"
+        for i in "${!players[@]}"; do
+            echo -e " ${MAGENTA}${BOLD}$((i+1)).${RESET} ${CYAN}${players[$i]}${RESET}"
+        done
+        echo
+
+        while true; do
+            read -p "$(echo -e ${YELLOW}"Choose the Deezer player number (1-${#players[@]}) : "${RESET})" choice
+            if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#players[@]}" ]; then
+                deezer_player=${players[$((choice-1))]}
+                break
+            else
+                warning "Invalid choice. Please enter a number between 1 and ${#players[@]}."
+            fi
+        done
+    fi
 }
 
 ask_spotify_tokens() {
@@ -178,6 +183,20 @@ find_available_port() {
 }
 
 install_dependencies() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        info "Checking Node.js and npm installation..."
+        if ! command_exists node || ! command_exists npm; then
+            error "Node.js or npm is not installed. Please install Node.js and npm before running this script."
+            exit 1
+        fi
+        success "Node.js and npm are installed."
+    else
+        if ! command_exists npm; then
+            error "npm is not installed. Please install Node.js and npm before running this script."
+            exit 1
+        fi
+    fi
+
     info "Installing npm dependencies..."
     npm install
     if [ $? -ne 0 ]; then
@@ -261,7 +280,11 @@ EOF
     print_fancy_box "Update Completed"
     success "The application has been updated and restarted on port $port."
     info "You can access the application at http://localhost:$port/now-playing"
-    warning "Make sure Deezer is running when you use the application."
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        warning "Make sure Deezer is running in Google Chrome when you use the application."
+    else
+        warning "Make sure Deezer is running when you use the application."
+    fi
 
     echo
     read -p "Press Enter to return to the main menu..."
@@ -275,26 +298,30 @@ install_and_run() {
     print_fancy_box "Checking prerequisites"
     show_progress 2
 
-    if ! command_exists playerctl; then
-        if command_exists apt-get; then
-            install_playerctl_debian
-        elif command_exists dnf; then
-            install_playerctl_redhat
-        elif command_exists pacman; then
-            install_playerctl_arch
-        else
-            error "Unable to detect a supported package manager."
-            error "Please install playerctl manually for your distribution."
-            exit 1
-        fi
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        info "macOS detected. Skipping playerctl installation."
+    else
         if ! command_exists playerctl; then
-            error "playerctl installation failed."
-            exit 1
+            if command_exists apt-get; then
+                install_playerctl_debian
+            elif command_exists dnf; then
+                install_playerctl_redhat
+            elif command_exists pacman; then
+                install_playerctl_arch
+            else
+                error "Unable to detect a supported package manager."
+                error "Please install playerctl manually for your distribution."
+                exit 1
+            fi
+            if ! command_exists playerctl; then
+                error "playerctl installation failed."
+                exit 1
+            fi
         fi
     fi
 
     clear_and_show_logo
-    success "playerctl is installed."
+    success "Prerequisites checked."
     show_progress 1
 
     choose_player
@@ -326,7 +353,11 @@ EOF
     print_fancy_box "Configuration completed"
     success "The application is now installed and running on port $port."
     info "You can access the application at http://localhost:$port/now-playing"
-    warning "Make sure Deezer is running when you use the application."
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        warning "Make sure Deezer is running in Google Chrome when you use the application."
+    else
+        warning "Make sure Deezer is running when you use the application."
+    fi
 
     echo
     info "To stop the application later, rerun this script and choose option 2."
