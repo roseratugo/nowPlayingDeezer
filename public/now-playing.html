@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Now Playing</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            * {
+                padding: 0;
+                margin: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: "Roboto", sans-serif;
+                background-color: transparent;
+                height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .now-playing-container {
+                width: 100%;
+                max-width: 400px;
+            }
+
+            .now-playing {
+                background: rgba(0, 0, 0, 0.7);
+                border-radius: 15px;
+                padding: 15px;
+                box-shadow:
+                    0 4px 6px rgba(0, 0, 0, 0.1),
+                    0 1px 3px rgba(0, 0, 0, 0.08);
+                backdrop-filter: blur(5px);
+                transition: all 0.3s ease;
+            }
+
+            .music-body {
+                display: flex;
+                align-items: center;
+                gap: 15px;
+            }
+
+            .music-cover {
+                width: 80px;
+                height: 80px;
+                border-radius: 10px;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+                transition: transform 0.3s ease;
+            }
+
+            .music-cover:hover {
+                transform: scale(1.05);
+            }
+
+            .music-body__content {
+                flex: 1;
+                overflow: hidden;
+            }
+
+            .music-name,
+            .music-artist {
+                color: #ffffff;
+                text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .music-name {
+                font-size: 1.2em;
+                font-weight: 700;
+                margin-bottom: 5px;
+            }
+
+            .music-artist {
+                font-size: 1em;
+                opacity: 0.8;
+            }
+
+            .scroll-container {
+                overflow: hidden;
+            }
+
+            .scroll-text {
+                display: inline-block;
+                padding-right: 20px;
+                animation: scroll-left 15s linear infinite;
+            }
+
+            @keyframes scroll-left {
+                0% {
+                    transform: translateX(0);
+                }
+                100% {
+                    transform: translateX(-100%);
+                }
+            }
+
+            #skeleton {
+                display: none;
+            }
+
+            .skeleton-text {
+                height: 1em;
+                background-color: rgba(255, 255, 255, 0.2);
+                margin-bottom: 0.5em;
+                border-radius: 5px;
+                animation: pulse 1.5s infinite;
+            }
+
+            @keyframes pulse {
+                0% {
+                    opacity: 0.6;
+                }
+                50% {
+                    opacity: 1;
+                }
+                100% {
+                    opacity: 0.6;
+                }
+            }
+
+            .fade-in {
+                animation: fadeIn 0.5s ease-in;
+            }
+
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                }
+                to {
+                    opacity: 1;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="now-playing-container">
+            <div class="now-playing">
+                <div id="content" class="music-body">
+                    <img
+                        id="cover"
+                        class="music-cover"
+                        src=""
+                        alt="Album cover"
+                        style="display: none"
+                    />
+                    <div class="music-body__content">
+                        <div class="music-name">
+                            <div class="scroll-container">
+                                <span id="title" class="scroll-text"></span>
+                            </div>
+                        </div>
+                        <div class="music-artist">
+                            <div class="scroll-container">
+                                <span id="artist" class="scroll-text"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="skeleton" class="music-body">
+                    <div class="music-cover skeleton-text"></div>
+                    <div class="music-body__content">
+                        <div class="music-name skeleton-text"></div>
+                        <div class="music-artist skeleton-text"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            let currentTitle = "";
+            let currentArtist = "";
+            let currentCoverUrl = "";
+
+            function refreshContent() {
+                fetch("/now-playing-data")
+                    .then((response) => response.json())
+                    .then((data) => {
+                        const contentElement =
+                            document.getElementById("content");
+                        const skeletonElement =
+                            document.getElementById("skeleton");
+                        const coverElement = document.getElementById("cover");
+
+                        if (data.title && data.artist) {
+                            const contentChanged =
+                                data.title !== currentTitle ||
+                                data.artist !== currentArtist ||
+                                data.coverUrl !== currentCoverUrl;
+
+                            if (contentChanged) {
+                                updateScrollingText(
+                                    document.getElementById("title"),
+                                    data.title,
+                                );
+                                updateScrollingText(
+                                    document.getElementById("artist"),
+                                    data.artist,
+                                );
+
+                                if (data.coverUrl) {
+                                    coverElement.src = data.coverUrl;
+                                    coverElement.style.display = "block";
+                                } else {
+                                    coverElement.style.display = "none";
+                                }
+
+                                contentElement.classList.add("fade-in");
+                                setTimeout(
+                                    () =>
+                                        contentElement.classList.remove(
+                                            "fade-in",
+                                        ),
+                                    500,
+                                );
+
+                                currentTitle = data.title;
+                                currentArtist = data.artist;
+                                currentCoverUrl = data.coverUrl;
+                            }
+
+                            contentElement.style.display = "flex";
+                            skeletonElement.style.display = "none";
+                        } else {
+                            contentElement.style.display = "none";
+                            skeletonElement.style.display = "flex";
+                        }
+                    })
+                    .catch((error) => {
+                        console.error("Error:", error);
+                        document.getElementById("content").style.display =
+                            "none";
+                        document.getElementById("skeleton").style.display =
+                            "flex";
+                    });
+            }
+
+            function updateScrollingText(element, text) {
+                if (element.textContent !== text) {
+                    const container = element.parentElement;
+                    element.textContent = text;
+                    element.style.animation = "none";
+                    element.offsetHeight; // Force reflow
+
+                    if (element.scrollWidth > container.clientWidth) {
+                        element.textContent = text + " " + text;
+                        const duration = element.scrollWidth / 50;
+                        element.style.animation = `scroll-left ${duration}s linear infinite`;
+                    } else {
+                        element.style.animation = "none";
+                    }
+                }
+            }
+
+            refreshContent();
+            setInterval(refreshContent, 5000);
+        </script>
+    </body>
+</html>
