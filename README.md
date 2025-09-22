@@ -1,3 +1,8 @@
+> [!NOTE]  
+> 🚧 **Work in progress:** I’m currently developing a **fully refactored version** of _Now Playing Deezer_.  
+> This new version will use a **custom Google Chrome extension** I’m coding, so it won’t rely on locally installed libraries anymore.  
+> Stay tuned for updates!  
+
 # Now Playing Deezer
 
 ## Table of Contents
